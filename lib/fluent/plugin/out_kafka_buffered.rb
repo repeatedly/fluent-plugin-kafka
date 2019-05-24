@@ -82,9 +82,20 @@ Add a regular expression to capture ActiveSupport notifications from the Kafka c
 requires activesupport gem - records will be generated under fluent_kafka_stats.**
 DESC
 
-  config_param :monitoring_list, :array, :default => [],
+  config_param :monitoring_list, :array, :default => [], deprecated: "Use <monitoring> section instead.",
                :desc => "library to be used to monitor. statsd and datadog are supported"
 
+  config_section :monitoring, param_name: :monitorings, multi: true do
+    config_param :target, :string, :default => nil,
+                 :desc => "library to be used to monitor. statsd and datadog are supported"
+    config_param :namespace, :string, :default => nil,
+                 :desc => "Use default of ruby-kafka"
+    config_param :host, :string, :default => nil,
+                 :desc => "Use default of ruby-kafka"
+    config_param :port, :integer, :default => nil,
+                 :desc => "Use default of ruby-kafka"
+  end
+  
   include Fluent::KafkaPluginUtil::SSLSettings
   include Fluent::KafkaPluginUtil::SaslSettings
 
@@ -197,9 +208,20 @@ DESC
       end
     end
 
-    @monitoring_list.each { |m|
-      require "kafka/#{m}"
-      log.info "#{m} monitoring started"
+    @monitorings.each{|m|
+      if m.target == 'statsd'
+        require "kafka/statsd"
+        Kafka::Statsd.namespace = m.namespace if m.namespace
+        Kafka::Statsd.host = m.host if m.host
+        Kafka::Statsd.port = m.port if m.port
+        log.info "statsd monitoring started"
+      elsif @monitoring == 'datadog'
+        require "kafka/datadog"
+        Kafka::Datadog.namespace = m.namespace if m.namespace
+        Kafka::Datadog.host = m.host if m.host
+        Kafka::Datadog.port = m.port if m.port
+        log.info "datadog monitoring started"
+      end
     }
   end
 
@@ -359,4 +381,4 @@ DESC
     # Raise exception to retry sendind messages
     raise e
   end
-end
+end 
